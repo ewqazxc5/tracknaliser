@@ -1,0 +1,10 @@
+
+- start: INVALIDSTRING
+  end: INVALIDSTRING
+  answer: "Invalid"
+- start: INVALIDSTRING
+  end: 50 50
+  answer: "Invalid"
+- start: 0 0
+  end: INVALIDSTRING
+  answer: "Invalid"

@@ -1,0 +1,255 @@
+
+<!DOCTYPE html>
+
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>tracknaliser_library.tracknaliser_calculator &#8212; tracknaliser  documentation</title>
+    <link rel="stylesheet" type="text/css" href="../../_static/pygments.css" />
+    <link rel="stylesheet" type="text/css" href="../../_static/alabaster.css" />
+    <script data-url_root="../../" id="documentation_options" src="../../_static/documentation_options.js"></script>
+    <script src="../../_static/jquery.js"></script>
+    <script src="../../_static/underscore.js"></script>
+    <script src="../../_static/doctools.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" />
+   
+  <link rel="stylesheet" href="../../_static/custom.css" type="text/css" />
+  
+  
+  <meta name="viewport" content="width=device-width, initial-scale=0.9, maximum-scale=0.9" />
+
+  </head><body>
+  
+
+    <div class="document">
+      <div class="documentwrapper">
+        <div class="bodywrapper">
+          
+
+          <div class="body" role="main">
+            
+  <h1>Source code for tracknaliser_library.tracknaliser_calculator</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span> <span class="nn">numpy</span> <span class="k">as</span> <span class="nn">np</span>
+<span class="kn">import</span> <span class="nn">requests</span>
+<span class="kn">import</span> <span class="nn">time</span>
+<span class="kn">import</span> <span class="nn">json</span>
+<span class="kn">from</span> <span class="nn">math</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">random</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">from</span> <span class="nn">tracknaliser_library.input_validation</span> <span class="kn">import</span> <span class="o">*</span>
+<span class="kn">import</span> <span class="nn">sys</span>
+
+
+
+<div class="viewcode-block" id="json_track_calculator"><a class="viewcode-back" href="../../index.html#tracknaliser_library.tracknaliser_calculator.json_track_calculator">[docs]</a><span class="k">def</span> <span class="nf">json_track_calculator</span><span class="p">(</span><span class="n">track_details_dict</span><span class="p">,</span> <span class="n">multi_stop_journey</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">previous_sample_elevation</span> <span class="o">=</span> <span class="mi">0</span><span class="p">):</span> <span class="c1">#accepts one track only in dict form</span>
+    <span class="sd">&quot;&quot;&quot; Generate some list contains time , co2 emissions and distance.</span>
+
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    track_details_dict: dictionary</span>
+<span class="sd">        A dictionary contains basic information about a track, for example: {&quot;cc&quot;:&quot;11233344111&quot;,&quot;elevation&quot;:[17,18,19,24,23,22,21,16,11,12,13,14],&quot;road&quot;:&quot;llmmmmlrrrr&quot;,&quot;terrain&quot;:&quot;pggppdddppg&quot;}</span>
+
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list</span>
+<span class="sd">        A list like [co2 emissions, time cost, distance]</span>
+<span class="sd">        </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">flat_fuel_consumption</span> <span class="o">=</span> <span class="mf">0.054</span>
+    <span class="n">road_consumption_factors</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;r&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">30</span><span class="p">,</span><span class="mf">1.4</span><span class="p">],</span> <span class="s2">&quot;l&quot;</span><span class="p">:</span> <span class="p">[</span><span class="mi">80</span><span class="p">,</span><span class="mi">1</span><span class="p">],</span> <span class="s2">&quot;m&quot;</span><span class="p">:[</span><span class="mi">120</span><span class="p">,</span><span class="mf">1.25</span><span class="p">]}</span> <span class="c1">#speed,factor</span>
+    <span class="n">terrain_consumption_factors</span> <span class="o">=</span> <span class="p">{</span><span class="s2">&quot;d&quot;</span><span class="p">:</span> <span class="mf">2.5</span><span class="p">,</span> <span class="s2">&quot;g&quot;</span><span class="p">:</span> <span class="mf">1.25</span><span class="p">,</span> <span class="s2">&quot;p&quot;</span><span class="p">:</span> <span class="mi">1</span><span class="p">}</span>
+    <span class="n">elevation_consumption_factors</span> <span class="o">=</span> <span class="p">{</span>  <span class="s2">&quot;-8&quot;</span><span class="p">:</span><span class="mf">0.16</span><span class="p">,</span>  <span class="s2">&quot;-4&quot;</span><span class="p">:</span><span class="mf">0.45</span><span class="p">,</span>  <span class="s2">&quot;0&quot;</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span>  <span class="s2">&quot;4&quot;</span><span class="p">:</span><span class="mf">1.3</span><span class="p">,</span> <span class="s2">&quot;8&quot;</span><span class="p">:</span><span class="mf">2.35</span><span class="p">,</span><span class="s2">&quot;12&quot;</span><span class="p">:</span><span class="mf">2.9</span><span class="p">}</span>
+
+    <span class="n">full_stepped_route</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">sum_of_emissions</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">sum_of_times</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">sum_of_distance</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">chain_code</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">track_details_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;cc&quot;</span><span class="p">))</span>
+    <span class="n">elevation</span> <span class="o">=</span> <span class="n">track_details_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;elevation&quot;</span><span class="p">)</span>
+    <span class="n">elevation_0</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">elevation</span><span class="p">[</span><span class="mi">0</span><span class="p">])</span>
+    <span class="n">elevation</span> <span class="o">=</span> <span class="n">elevation</span><span class="p">[</span><span class="mi">1</span><span class="p">:]</span>
+    <span class="n">road</span> <span class="o">=</span> <span class="n">track_details_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;road&quot;</span><span class="p">)</span>
+    <span class="n">terrain</span> <span class="o">=</span> <span class="n">track_details_dict</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;terrain&quot;</span><span class="p">)</span>
+
+    <span class="n">full_stepped_route</span><span class="o">.</span><span class="n">append</span><span class="p">([</span> <span class="p">[</span> <span class="n">chain_code</span><span class="p">[</span><span class="n">step</span><span class="p">],</span> <span class="n">elevation</span><span class="p">[</span><span class="n">step</span><span class="p">],</span> <span class="n">road</span><span class="p">[</span><span class="n">step</span><span class="p">],</span> <span class="n">terrain</span><span class="p">[</span><span class="n">step</span><span class="p">]</span> <span class="p">]</span> <span class="k">for</span> <span class="n">step</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="nb">len</span><span class="p">(</span><span class="n">chain_code</span><span class="p">))</span> <span class="p">])</span>
+    <span class="n">full_stepped_route</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">full_stepped_route</span><span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span><span class="mi">4</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">step</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">full_stepped_route</span><span class="p">):</span>
+        <span class="n">distance</span> <span class="o">=</span> <span class="mi">1</span>
+
+        <span class="n">delta_elevation</span> <span class="o">=</span> <span class="n">elevation_0</span> <span class="k">if</span> <span class="n">i</span> <span class="o">==</span> <span class="mi">0</span> <span class="k">else</span> <span class="nb">int</span><span class="p">(</span><span class="n">step</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span><span class="o">-</span><span class="nb">int</span><span class="p">(</span><span class="n">full_stepped_route</span><span class="p">[</span><span class="n">i</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="mi">1</span><span class="p">])</span>
+        <span class="k">if</span> <span class="n">multi_stop_journey</span> <span class="o">==</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="n">delta_elevation</span> <span class="o">=</span> <span class="n">previous_sample_elevation</span> 
+
+        <span class="n">net_distance</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">sqrt</span><span class="p">((</span><span class="n">distance</span><span class="o">*</span><span class="n">distance</span><span class="p">)</span><span class="o">+</span><span class="p">(</span><span class="n">delta_elevation</span><span class="o">/</span><span class="mi">1000</span><span class="p">)</span><span class="o">**</span><span class="mi">2</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">delta_elevation</span><span class="o">/</span><span class="mi">10</span><span class="o">&gt;</span><span class="mi">10</span><span class="p">:</span>
+            <span class="n">delta_elevation</span><span class="o">=</span><span class="mi">12</span>
+        <span class="k">elif</span> <span class="mi">6</span><span class="o">&lt;</span><span class="n">delta_elevation</span><span class="o">/</span><span class="mi">10</span><span class="o">&lt;=</span><span class="mi">10</span><span class="p">:</span>
+            <span class="n">delta_elevation</span><span class="o">=</span><span class="mi">8</span>
+        <span class="k">elif</span> <span class="mi">2</span><span class="o">&lt;</span><span class="n">delta_elevation</span><span class="o">/</span><span class="mi">10</span><span class="o">&lt;=</span><span class="mi">6</span><span class="p">:</span>
+            <span class="n">delta_elevation</span><span class="o">=</span><span class="mi">4</span>
+        <span class="k">elif</span> <span class="o">-</span><span class="mi">2</span><span class="o">&lt;=</span><span class="n">delta_elevation</span><span class="o">/</span><span class="mi">10</span><span class="o">&lt;=</span><span class="mi">2</span><span class="p">:</span>
+            <span class="n">delta_elevation</span><span class="o">=</span><span class="mi">0</span>
+        <span class="k">elif</span> <span class="o">-</span><span class="mi">6</span><span class="o">&lt;=</span><span class="n">delta_elevation</span><span class="o">/</span><span class="mi">10</span><span class="o">&lt;-</span><span class="mi">2</span><span class="p">:</span>
+            <span class="n">delta_elevation</span><span class="o">=-</span><span class="mi">4</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">delta_elevation</span><span class="o">=-</span><span class="mi">8</span>
+        <span class="n">elevation_factor</span> <span class="o">=</span> <span class="n">elevation_consumption_factors</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="nb">str</span><span class="p">(</span><span class="n">delta_elevation</span><span class="p">))</span>
+
+        <span class="n">road_factor_emission</span> <span class="o">=</span> <span class="n">road_consumption_factors</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">step</span><span class="p">[</span><span class="mi">2</span><span class="p">])[</span><span class="mi">1</span><span class="p">]</span>
+        <span class="n">terrain_factor</span> <span class="o">=</span> <span class="n">terrain_consumption_factors</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">step</span><span class="p">[</span><span class="mi">3</span><span class="p">])</span>
+        <span class="n">time_contribution_seconds</span> <span class="o">=</span> <span class="mi">60</span><span class="o">*</span><span class="mi">60</span><span class="o">*</span><span class="n">net_distance</span><span class="o">/</span><span class="n">road_consumption_factors</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">step</span><span class="p">[</span><span class="mi">2</span><span class="p">])[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="n">sum_of_emissions</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="mf">2.6391</span><span class="o">*</span><span class="nb">float</span><span class="p">(</span><span class="n">flat_fuel_consumption</span><span class="p">)</span><span class="o">*</span><span class="nb">float</span><span class="p">(</span><span class="n">net_distance</span><span class="p">)</span><span class="o">*</span><span class="nb">float</span><span class="p">(</span><span class="n">elevation_factor</span><span class="p">)</span><span class="o">*</span><span class="nb">float</span><span class="p">(</span><span class="n">road_factor_emission</span><span class="p">)</span><span class="o">*</span><span class="nb">float</span><span class="p">(</span><span class="n">terrain_factor</span><span class="p">))</span>
+        <span class="n">sum_of_times</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">time_contribution_seconds</span><span class="p">)</span>
+        <span class="n">sum_of_distance</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">net_distance</span><span class="p">)</span>
+
+        <span class="c1">#print(&quot;Assesing segment:&quot;, step);print(&quot;horizontal distance contribution&quot;, distance);print(&quot;elevation contribution:&quot;, delta_elevation);print(&quot;net distance contribution:&quot;, net_distance, &quot;from root (&quot;, delta_elevation, &quot;^2 +&quot;, distance, &quot;^2)&quot;);print(&quot;road contribution:&quot;, road_factor_emission, &quot;road travel speed&quot;, road_consumption_factors.get(step[2])[0]);print(&quot;terrain contribution:&quot;, terrain_factor);print(&quot;total emission from this step&quot;, float(flat_fuel_consumption)*float(net_distance)*float(elevation_factor)*float(road_factor_emission)*float(terrain_factor));print(&quot;time contribution from this step&quot;, time_contribution_seconds, &quot;seconds&quot;);print(&quot;--------------------&quot;)</span>
+
+    <span class="c1">#print(&quot;overall emission from this route&quot;, sum(sum_of_emissions), &quot;overall time from this route&quot;, sum(sum_of_times), &quot;seconds&quot;)</span>
+    <span class="k">return</span> <span class="p">[</span><span class="nb">sum</span><span class="p">(</span><span class="n">sum_of_emissions</span><span class="p">),</span><span class="nb">sum</span><span class="p">(</span><span class="n">sum_of_times</span><span class="p">),</span><span class="nb">sum</span><span class="p">(</span><span class="n">sum_of_distance</span><span class="p">)]</span></div>
+
+<div class="viewcode-block" id="request_track"><a class="viewcode-back" href="../../index.html#tracknaliser_library.tracknaliser_calculator.request_track">[docs]</a><span class="k">def</span> <span class="nf">request_track</span><span class="p">(</span><span class="n">start</span> <span class="o">=</span> <span class="p">(</span><span class="mi">0</span><span class="p">,</span><span class="mi">0</span><span class="p">),</span> <span class="n">end</span> <span class="o">=</span> <span class="p">(</span><span class="mi">299</span><span class="p">,</span><span class="mi">299</span><span class="p">),</span> <span class="n">min_steps_straight</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span> <span class="n">max_steps_straight</span> <span class="o">=</span> <span class="o">-</span><span class="mi">99</span><span class="p">,</span> <span class="n">n_tracks</span> <span class="o">=</span> <span class="mi">300</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Get information from online webpage</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    start: tuple</span>
+<span class="sd">        A start point in the map , such as (0,0) or (5,5) , between (0,0) to (300,300), default=(0,0)</span>
+<span class="sd">    end: tuple</span>
+<span class="sd">        An end point in the map , such as (10,10) or (100,100), between (0,0) to (300,300), default=(299,299)</span>
+<span class="sd">    min_steps_straight: int</span>
+<span class="sd">        define minimum step in a direction, default=1</span>
+<span class="sd">    max_steps_straight: int</span>
+<span class="sd">        define maximum step in a direction, default=-99</span>
+<span class="sd">    n_tracks: int</span>
+<span class="sd">        Number of tracks the webpage returns, default=300</span>
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    dictionary</span>
+<span class="sd">        A whole json file like {&quot;metadata&quot;:{&quot;datetime&quot;:&quot;2021-12-11T21:12:20&quot;,&quot;end&quot;:[4,2],&quot;mapsize&quot;:[5,5],&quot;n_tracks&quot;:5,&quot;rangesteps&quot;:[1,2],&quot;resolution&quot;:1,&quot;start&quot;:[2,3],&quot;units_elevation&quot;:&quot;m&quot;,&quot;units_steps&quot;:&quot;km&quot;},&quot;tracks&quot;:[{&quot;cc&quot;:&quot;11233344111&quot;,&quot;elevation&quot;:[17,18,19,24,23,22,21,16,11,12,13,14],&quot;road&quot;:&quot;llmmmmlrrrr&quot;,&quot;terrain&quot;:&quot;pggppdddppg&quot;},{&quot;cc&quot;:&quot;443411122&quot;,&quot;elevation&quot;:[17,12,7,6,1,2,3,4,9,14],&quot;road&quot;:&quot;rrrrrrrrr&quot;,&quot;terrain&quot;:&quot;ppddppggg&quot;},{&quot;cc&quot;:&quot;3341111&quot;,&quot;elevation&quot;:[17,16,15,10,11,12,13,14],&quot;road&quot;:&quot;llrrrrr&quot;,&quot;terrain&quot;:&quot;ddddppg&quot;},{&quot;cc&quot;:&quot;21144&quot;,&quot;elevation&quot;:[17,22,23,24,19,14],&quot;road&quot;:&quot;mmmlr&quot;,&quot;terrain&quot;:&quot;ppggg&quot;},{&quot;cc&quot;:&quot;343411121&quot;,&quot;elevation&quot;:[17,16,11,10,5,6,7,8,13,14],&quot;road&quot;:&quot;lrrrrrrrr&quot;,&quot;terrain&quot;:&quot;dddddpppg&quot;}]}</span>
+<span class="sd">        </span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">n_tracks</span><span class="o">==-</span><span class="mi">1</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">{</span><span class="s2">&quot;metadata&quot;</span><span class="p">:{</span><span class="s2">&quot;datetime&quot;</span><span class="p">:</span><span class="s2">&quot;2021-12-11T21:12:20&quot;</span><span class="p">,</span><span class="s2">&quot;end&quot;</span><span class="p">:[</span><span class="mi">4</span><span class="p">,</span><span class="mi">2</span><span class="p">],</span><span class="s2">&quot;mapsize&quot;</span><span class="p">:[</span><span class="mi">5</span><span class="p">,</span><span class="mi">5</span><span class="p">],</span><span class="s2">&quot;n_tracks&quot;</span><span class="p">:</span><span class="mi">5</span><span class="p">,</span><span class="s2">&quot;rangesteps&quot;</span><span class="p">:[</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">],</span><span class="s2">&quot;resolution&quot;</span><span class="p">:</span><span class="mi">1</span><span class="p">,</span><span class="s2">&quot;start&quot;</span><span class="p">:[</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">],</span><span class="s2">&quot;units_elevation&quot;</span><span class="p">:</span><span class="s2">&quot;m&quot;</span><span class="p">,</span><span class="s2">&quot;units_steps&quot;</span><span class="p">:</span><span class="s2">&quot;km&quot;</span><span class="p">},</span><span class="s2">&quot;tracks&quot;</span><span class="p">:[{</span><span class="s2">&quot;cc&quot;</span><span class="p">:</span><span class="s2">&quot;11233344111&quot;</span><span class="p">,</span><span class="s2">&quot;elevation&quot;</span><span class="p">:[</span><span class="mi">17</span><span class="p">,</span><span class="mi">18</span><span class="p">,</span><span class="mi">19</span><span class="p">,</span><span class="mi">24</span><span class="p">,</span><span class="mi">23</span><span class="p">,</span><span class="mi">22</span><span class="p">,</span><span class="mi">21</span><span class="p">,</span><span class="mi">16</span><span class="p">,</span><span class="mi">11</span><span class="p">,</span><span class="mi">12</span><span class="p">,</span><span class="mi">13</span><span class="p">,</span><span class="mi">14</span><span class="p">],</span><span class="s2">&quot;road&quot;</span><span class="p">:</span><span class="s2">&quot;llmmmmlrrrr&quot;</span><span class="p">,</span><span class="s2">&quot;terrain&quot;</span><span class="p">:</span><span class="s2">&quot;pggppdddppg&quot;</span><span class="p">},{</span><span class="s2">&quot;cc&quot;</span><span class="p">:</span><span class="s2">&quot;443411122&quot;</span><span class="p">,</span><span class="s2">&quot;elevation&quot;</span><span class="p">:[</span><span class="mi">17</span><span class="p">,</span><span class="mi">12</span><span class="p">,</span><span class="mi">7</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">1</span><span class="p">,</span><span class="mi">2</span><span class="p">,</span><span class="mi">3</span><span class="p">,</span><span class="mi">4</span><span class="p">,</span><span class="mi">9</span><span class="p">,</span><span class="mi">14</span><span class="p">],</span><span class="s2">&quot;road&quot;</span><span class="p">:</span><span class="s2">&quot;rrrrrrrrr&quot;</span><span class="p">,</span><span class="s2">&quot;terrain&quot;</span><span class="p">:</span><span class="s2">&quot;ppddppggg&quot;</span><span class="p">},{</span><span class="s2">&quot;cc&quot;</span><span class="p">:</span><span class="s2">&quot;3341111&quot;</span><span class="p">,</span><span class="s2">&quot;elevation&quot;</span><span class="p">:[</span><span class="mi">17</span><span class="p">,</span><span class="mi">16</span><span class="p">,</span><span class="mi">15</span><span class="p">,</span><span class="mi">10</span><span class="p">,</span><span class="mi">11</span><span class="p">,</span><span class="mi">12</span><span class="p">,</span><span class="mi">13</span><span class="p">,</span><span class="mi">14</span><span class="p">],</span><span class="s2">&quot;road&quot;</span><span class="p">:</span><span class="s2">&quot;llrrrrr&quot;</span><span class="p">,</span><span class="s2">&quot;terrain&quot;</span><span class="p">:</span><span class="s2">&quot;ddddppg&quot;</span><span class="p">},{</span><span class="s2">&quot;cc&quot;</span><span class="p">:</span><span class="s2">&quot;21144&quot;</span><span class="p">,</span><span class="s2">&quot;elevation&quot;</span><span class="p">:[</span><span class="mi">17</span><span class="p">,</span><span class="mi">22</span><span class="p">,</span><span class="mi">23</span><span class="p">,</span><span class="mi">24</span><span class="p">,</span><span class="mi">19</span><span class="p">,</span><span class="mi">14</span><span class="p">],</span><span class="s2">&quot;road&quot;</span><span class="p">:</span><span class="s2">&quot;mmmlr&quot;</span><span class="p">,</span><span class="s2">&quot;terrain&quot;</span><span class="p">:</span><span class="s2">&quot;ppggg&quot;</span><span class="p">},{</span><span class="s2">&quot;cc&quot;</span><span class="p">:</span><span class="s2">&quot;343411121&quot;</span><span class="p">,</span><span class="s2">&quot;elevation&quot;</span><span class="p">:[</span><span class="mi">17</span><span class="p">,</span><span class="mi">16</span><span class="p">,</span><span class="mi">11</span><span class="p">,</span><span class="mi">10</span><span class="p">,</span><span class="mi">5</span><span class="p">,</span><span class="mi">6</span><span class="p">,</span><span class="mi">7</span><span class="p">,</span><span class="mi">8</span><span class="p">,</span><span class="mi">13</span><span class="p">,</span><span class="mi">14</span><span class="p">],</span><span class="s2">&quot;road&quot;</span><span class="p">:</span><span class="s2">&quot;lrrrrrrrr&quot;</span><span class="p">,</span><span class="s2">&quot;terrain&quot;</span><span class="p">:</span><span class="s2">&quot;dddddpppg&quot;</span><span class="p">}]}</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">start_x</span> <span class="o">=</span> <span class="n">start</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span> <span class="n">start_y</span><span class="o">=</span><span class="n">start</span><span class="p">[</span><span class="mi">1</span><span class="p">];</span> <span class="n">end_x</span> <span class="o">=</span> <span class="n">end</span><span class="p">[</span><span class="mi">0</span><span class="p">];</span> <span class="n">end_y</span><span class="o">=</span><span class="n">end</span><span class="p">[</span><span class="mi">1</span><span class="p">];</span> 
+        <span class="k">if</span> <span class="n">max_steps_straight</span> <span class="o">==</span> <span class="o">-</span><span class="mi">99</span> <span class="ow">or</span> <span class="n">max_steps_straight</span><span class="o">&lt;</span><span class="n">min_steps_straight</span><span class="p">:</span>
+            <span class="n">max_steps_straight</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="n">min_steps_straight</span> <span class="o">+</span> <span class="mi">5</span><span class="p">)</span> 
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">max_steps_straight</span><span class="o">=</span><span class="n">max_steps_straight</span>
+        <span class="n">base_url</span> <span class="o">=</span> <span class="s2">&quot;http://ucl-rse-with-python.herokuapp.com/road-tracks/tracks/?&quot;</span>
+        <span class="n">user_inputs_url</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;start_point_x=&quot;</span><span class="p">,</span><span class="n">start_x</span><span class="p">,</span><span class="s2">&quot;&amp;start_point_y=&quot;</span><span class="p">,</span><span class="n">start_y</span><span class="p">,</span><span class="s2">&quot;&amp;end_point_x=&quot;</span><span class="p">,</span><span class="nb">int</span><span class="p">(</span><span class="n">end_x</span><span class="p">),</span><span class="s2">&quot;&amp;end_point_y=&quot;</span><span class="p">,</span><span class="nb">int</span><span class="p">(</span><span class="n">end_y</span><span class="p">),</span><span class="s2">&quot;&amp;min_steps_straight=&quot;</span><span class="p">,</span><span class="n">min_steps_straight</span><span class="p">,</span><span class="s2">&quot;&amp;max_steps_straight=&quot;</span><span class="p">,</span><span class="n">max_steps_straight</span><span class="p">,</span><span class="s2">&quot;&amp;n_tracks=&quot;</span><span class="p">,</span><span class="n">n_tracks</span><span class="p">]</span>
+        <span class="n">user_inputs_url</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">user_inputs_url</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;,&quot;</span><span class="p">,</span><span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;[&quot;</span><span class="p">,</span><span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;]&quot;</span><span class="p">,</span><span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot; &quot;</span><span class="p">,</span><span class="s2">&quot;&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">replace</span><span class="p">(</span><span class="s2">&quot;&#39;&quot;</span><span class="p">,</span><span class="s2">&quot;&quot;</span><span class="p">)</span>
+        <span class="n">request</span> <span class="o">=</span> <span class="nb">str</span><span class="p">(</span><span class="n">base_url</span> <span class="o">+</span> <span class="n">user_inputs_url</span><span class="p">)</span>
+        <span class="n">returned_request</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">request</span><span class="p">)</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+        <span class="n">schema_pass_fail</span> <span class="o">=</span> <span class="n">valid_schema_check</span><span class="p">(</span><span class="n">returned_request</span><span class="p">)</span>
+        <span class="n">contents_pass_fail</span> <span class="o">=</span> <span class="n">json_contents_check</span><span class="p">(</span><span class="n">returned_request</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">schema_pass_fail</span> <span class="ow">and</span> <span class="n">contents_pass_fail</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;Fewer routes available than requested (default number of requested tracks is 300)&quot;</span><span class="p">)</span> <span class="k">if</span> <span class="n">returned_request</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;metadata&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;n_tracks&quot;</span><span class="p">)</span> <span class="o">!=</span> <span class="nb">int</span><span class="p">(</span><span class="n">n_tracks</span><span class="p">)</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="k">return</span> <span class="n">returned_request</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="nb">print</span><span class="p">(</span><span class="s2">&quot;webapp returned an invalid set of tracks&quot;</span><span class="p">)</span>
+            <span class="n">sys</span><span class="o">.</span><span class="n">exit</span><span class="p">(</span><span class="s2">&quot;webapp returned an invalid set of tracks&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="sort_results"><a class="viewcode-back" href="../../index.html#tracknaliser_library.tracknaliser_calculator.sort_results">[docs]</a><span class="k">def</span> <span class="nf">sort_results</span><span class="p">(</span><span class="n">returned_request_track</span><span class="p">):</span>
+    <span class="sd">&quot;&quot;&quot; Get exact one track according to the criteria</span>
+
+<span class="sd">    Parameters</span>
+<span class="sd">    ----------</span>
+<span class="sd">    returned_request_track: dictionary</span>
+<span class="sd">        A dictionary contains basic information about a track, for example: {&quot;cc&quot;:&quot;11233344111&quot;,&quot;elevation&quot;:[17,18,19,24,23,22,21,16,11,12,13,14],&quot;road&quot;:&quot;llmmmmlrrrr&quot;,&quot;terrain&quot;:&quot;pggppdddppg&quot;}</span>
+
+
+<span class="sd">    Returns</span>
+<span class="sd">    -------</span>
+<span class="sd">    list</span>
+<span class="sd">        A list contain 3 tracks [greenest, fastest, shortest] , each element is a dictionary like {&quot;cc&quot;:&quot;11233344111&quot;,&quot;elevation&quot;:[17,18,19,24,23,22,21,16,11,12,13,14],&quot;road&quot;:&quot;llmmmmlrrrr&quot;,&quot;terrain&quot;:&quot;pggppdddppg&quot;}</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">dic_tracks</span><span class="o">=</span><span class="p">{}</span>
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span><span class="n">j</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">returned_request_track</span><span class="p">):</span>
+        <span class="n">dic_tracks</span><span class="o">.</span><span class="n">update</span><span class="p">({</span><span class="n">i</span><span class="p">:</span><span class="n">j</span><span class="p">})</span>
+    <span class="n">results_from_tracks</span> <span class="o">=</span> <span class="p">[[</span><span class="n">index</span><span class="p">]</span><span class="o">+</span><span class="n">json_track_calculator</span><span class="p">(</span><span class="n">track</span><span class="p">)</span> <span class="k">for</span> <span class="n">index</span><span class="p">,</span><span class="n">track</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">returned_request_track</span><span class="p">)]</span>
+    <span class="c1"># Results are retruned as [time,emission] within a list of lists. </span>
+    <span class="c1"># Sorted method sorts by the first element in a 2d array element, the &quot;key = &quot; is required to sort by the second element.</span>
+    <span class="n">lowest_emission_route_index</span><span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">results_from_tracks</span><span class="p">,</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">1</span><span class="p">])[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">fastest_route_index</span> <span class="o">=</span> <span class="nb">sorted</span><span class="p">(</span><span class="n">results_from_tracks</span><span class="p">,</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">2</span><span class="p">])[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">shortest_route_index</span><span class="o">=</span><span class="nb">sorted</span><span class="p">(</span><span class="n">results_from_tracks</span><span class="p">,</span><span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">x</span><span class="p">[</span><span class="mi">3</span><span class="p">])[</span><span class="mi">0</span><span class="p">][</span><span class="mi">0</span><span class="p">]</span>
+    <span class="n">lowest_emission_route</span><span class="o">=</span><span class="n">dic_tracks</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">lowest_emission_route_index</span><span class="p">)</span>
+    <span class="n">fastest_route</span><span class="o">=</span><span class="n">dic_tracks</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">fastest_route_index</span><span class="p">)</span>
+    <span class="n">shortest_route</span><span class="o">=</span><span class="n">dic_tracks</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">shortest_route_index</span><span class="p">)</span>
+
+
+
+    <span class="k">return</span> <span class="p">[</span><span class="n">lowest_emission_route</span><span class="p">,</span><span class="n">fastest_route</span><span class="p">,</span><span class="n">shortest_route</span><span class="p">]</span></div>
+
+
+</pre></div>
+
+          </div>
+          
+        </div>
+      </div>
+      <div class="sphinxsidebar" role="navigation" aria-label="main navigation">
+        <div class="sphinxsidebarwrapper">
+<h1 class="logo"><a href="../../index.html">tracknaliser</a></h1>
+
+
+
+
+
+
+
+
+<h3>Navigation</h3>
+
+<div class="relations">
+<h3>Related Topics</h3>
+<ul>
+  <li><a href="../../index.html">Documentation overview</a><ul>
+  <li><a href="../index.html">Module code</a><ul>
+  </ul></li>
+  </ul></li>
+</ul>
+</div>
+<div id="searchbox" style="display: none" role="search">
+  <h3 id="searchlabel">Quick search</h3>
+    <div class="searchformwrapper">
+    <form class="search" action="../../search.html" method="get">
+      <input type="text" name="q" aria-labelledby="searchlabel" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"/>
+      <input type="submit" value="Go" />
+    </form>
+    </div>
+</div>
+<script>$('#searchbox').show(0);</script>
+
+
+
+
+
+
+
+
+        </div>
+      </div>
+      <div class="clearer"></div>
+    </div>
+    <div class="footer">
+      &copy;2022, group8.
+      
+      |
+      Powered by <a href="http://sphinx-doc.org/">Sphinx 4.3.1</a>
+      &amp; <a href="https://github.com/bitprophet/alabaster">Alabaster 0.7.12</a>
+      
+    </div>
+
+    
+
+    
+  </body>
+</html>
